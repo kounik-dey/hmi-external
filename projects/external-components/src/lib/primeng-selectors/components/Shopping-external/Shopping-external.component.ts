@@ -1,11 +1,10 @@
 import { Component } from '@angular/core';
 import { CommonExternalComponent } from '../common-external/common-external.component';
 
-interface Product {
+interface HealthTip {
   id: number;
-  name: string;
-  price: number;
-  quantity: number;
+  title: string;
+  description: string;
 }
 
 @Component({
@@ -13,78 +12,61 @@ interface Product {
   template: `
     <!-- 
       Features:
-      - Display a list of products
-      - Add products to cart
-      - View and update cart quantities
-      - Remove items from cart
+      - Display a list of health tips
+      - Mark tips as favorite
+      - View only favorite tips
     -->
-    <div class="shopping-container">
-      <h2>Product List</h2>
-      <ul class="product-list">
-        <li *ngFor="let product of products">
-          <span>{{product.name}} - ${{product.price}}</span>
-          <button (click)="addToCart(product)">Add to Cart</button>
+    <div class="health-tips-container">
+      <h2>Health Tips</h2>
+      <button (click)="showFavorites = !showFavorites">
+        {{ showFavorites ? 'Show All' : 'Show Favorites' }}
+      </button>
+      <ul class="tips-list">
+        <li *ngFor="let tip of displayedTips()">
+          <span class="tip-title">{{tip.title}}</span>
+          <p class="tip-desc">{{tip.description}}</p>
+          <button (click)="toggleFavorite(tip)">
+            {{ isFavorite(tip) ? 'Unfavorite' : 'Favorite' }}
+          </button>
         </li>
       </ul>
-
-      <h2>Shopping Cart</h2>
-      <div *ngIf="cart.length === 0">Your cart is empty.</div>
-      <ul class="cart-list" *ngIf="cart.length > 0">
-        <li *ngFor="let item of cart">
-          <span>{{item.name}} (x{{item.quantity}}) - ${{item.price * item.quantity}}</span>
-          <button (click)="increaseQuantity(item)">+</button>
-          <button (click)="decreaseQuantity(item)">-</button>
-          <button (click)="removeFromCart(item)">Remove</button>
-        </li>
-      </ul>
-      <div class="total" *ngIf="cart.length > 0">
-        Total: ${{getTotal()}}
-      </div>
     </div>
   `,
   styles: [`
-    .shopping-container { max-width: 500px; margin: auto; font-family: Arial, sans-serif; }
-    h2 { color: #1976d2; }
-    ul { list-style-type: none; padding: 0; }
-    .product-list li, .cart-list li { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    button { margin-left: 8px; }
-    .total { margin-top: 16px; font-weight: bold; }
+    .health-tips-container { max-width: 500px; margin: auto; font-family: Arial, sans-serif; }
+    h2 { color: #43a047; }
+    .tips-list { list-style-type: none; padding: 0; }
+    .tips-list li { border-bottom: 1px solid #e0e0e0; padding: 12px 0; }
+    .tip-title { font-weight: bold; }
+    .tip-desc { margin: 4px 0 8px 0; }
+    button { margin-top: 4px; }
   `]
 })
 export class ShoppingComponent extends CommonExternalComponent {
-  products: Product[] = [
-    { id: 1, name: 'Apple', price: 1, quantity: 1 },
-    { id: 2, name: 'Banana', price: 0.5, quantity: 1 },
-    { id: 3, name: 'Orange', price: 0.8, quantity: 1 }
+  healthTips: HealthTip[] = [
+    { id: 1, title: 'Stay Hydrated', description: 'Drink at least 8 glasses of water daily to keep your body hydrated.' },
+    { id: 2, title: 'Regular Exercise', description: 'Engage in physical activity for at least 30 minutes most days.' },
+    { id: 3, title: 'Balanced Diet', description: 'Eat a variety of foods including fruits, vegetables, and lean proteins.' },
+    { id: 4, title: 'Adequate Sleep', description: 'Aim for 7-9 hours of sleep each night for optimal health.' }
   ];
-  cart: Product[] = [];
+  favorites: Set<number> = new Set<number>();
+  showFavorites: boolean = false;
 
-  addToCart(product: Product): void {
-    const existing = this.cart.find(item => item.id === product.id);
-    if (existing) {
-      existing.quantity++;
+  toggleFavorite(tip: HealthTip): void {
+    if (this.favorites.has(tip.id)) {
+      this.favorites.delete(tip.id);
     } else {
-      this.cart.push({ ...product });
+      this.favorites.add(tip.id);
     }
   }
 
-  increaseQuantity(item: Product): void {
-    item.quantity++;
+  isFavorite(tip: HealthTip): boolean {
+    return this.favorites.has(tip.id);
   }
 
-  decreaseQuantity(item: Product): void {
-    if (item.quantity > 1) {
-      item.quantity--;
-    } else {
-      this.removeFromCart(item);
-    }
-  }
-
-  removeFromCart(item: Product): void {
-    this.cart = this.cart.filter(p => p.id !== item.id);
-  }
-
-  getTotal(): number {
-    return this.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  displayedTips(): HealthTip[] {
+    return this.showFavorites
+      ? this.healthTips.filter(tip => this.favorites.has(tip.id))
+      : this.healthTips;
   }
 }

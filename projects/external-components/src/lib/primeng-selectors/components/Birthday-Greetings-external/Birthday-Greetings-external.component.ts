@@ -12,8 +12,9 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
       Features:
       - Add friends/relatives' names and custom messages.
       - Generate a shareable link with name & message in URL params.
+      - Preview the greeting as it will appear to your friend (with confetti).
       - When opened via link, shows personalized greeting and confetti animation.
-      - Data is saved in local storage. Download/upload buttons for backup/restore.
+      - Data is saved in local storage.
       - Responsive Bootstrap 5 UI, PrimeIcons v7 for icons.
     -->
 
@@ -22,18 +23,9 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
         <h2>
           <i class="pi pi-gift text-primary"></i> Birthday Greetings
         </h2>
-        <div>
-          <button class="btn btn-outline-success me-2" (click)="downloadData()">
-            <i class="pi pi-download"></i> Download Data
-          </button>
-          <label class="btn btn-outline-primary mb-0">
-            <i class="pi pi-upload"></i> Upload Data
-            <input type="file" accept=".txt" hidden (change)="uploadData($event)">
-          </label>
-        </div>
       </div>
 
-      <!-- Greeting View if link has params -->
+      <!-- Greeting View if link has params or preview -->
       <div *ngIf="showGreeting" class="text-center position-relative" style="min-height: 350px;">
         <canvas #confettiCanvas class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events:none; z-index:0;"></canvas>
         <div class="card shadow mx-auto p-4" style="max-width: 400px; background: rgba(255,255,255,0.95); position:relative; z-index:1;">
@@ -42,6 +34,9 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
             Happy Birthday, <span class="text-primary">{{ greetingName }}</span>!
           </h3>
           <p class="lead">{{ greetingMessage }}</p>
+          <button *ngIf="previewMode" class="btn btn-outline-secondary mt-3" (click)="closePreview()">
+            <i class="pi pi-times"></i> Close Preview
+          </button>
         </div>
       </div>
 
@@ -76,6 +71,10 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
               <button class="btn btn-outline-secondary btn-sm me-2"
                 (click)="generateLink(g)" title="Generate Link">
                 <i class="pi pi-link"></i>
+              </button>
+              <button class="btn btn-outline-info btn-sm me-2"
+                (click)="previewGreeting(g)" title="Preview">
+                <i class="pi pi-eye"></i>
               </button>
               <button class="btn btn-outline-danger btn-sm"
                 (click)="deleteGreeting(i)" title="Delete">
@@ -116,6 +115,7 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
   showGreeting: boolean = false;
   greetingName: string = '';
   greetingMessage: string = '';
+  previewMode: boolean = false;
 
   constructor(private cdr: ChangeDetectorRef) {
     super();
@@ -125,13 +125,14 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
 
   // Check URL for ?name=...&message=...
   private checkForGreetingParams(): void {
-    const params = new URLSearchParams(window.location.search);
-    const name = params.get('name');
-    const message = params.get('message');
-    if (name && message) {
+    const params: URLSearchParams = new URLSearchParams(window.location.search);
+    const name: string | null = params.get('name');
+    const message: string | null = params.get('message');
+    if (name !== null && message !== null) {
       this.showGreeting = true;
       this.greetingName = decodeURIComponent(name);
       this.greetingMessage = decodeURIComponent(message);
+      this.previewMode = false;
       setTimeout(() => this.launchConfetti(), 300);
     }
   }
@@ -152,13 +153,13 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
   }
 
   generateLink(greeting: { name: string; message: string }): void {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const url = `${baseUrl}?name=${encodeURIComponent(greeting.name)}&message=${encodeURIComponent(greeting.message)}`;
+    const baseUrl: string = window.location.origin + window.location.pathname;
+    const url: string = `${baseUrl}?name=${encodeURIComponent(greeting.name)}&message=${encodeURIComponent(greeting.message)}`;
     this.shareableUrl = url;
   }
 
   copyToClipboard(text: string): void {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text);
   }
 
   // Local Storage
@@ -167,35 +168,45 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
   }
 
   private loadFromLocalStorage(): void {
-    const data = localStorage.getItem('birthday-greetings');
+    const data: string | null = localStorage.getItem('birthday-greetings');
     if (data) {
       try {
-        this.greetings = JSON.parse(data);
+        const parsed: unknown = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          this.greetings = parsed as Array<{ name: string; message: string }>;
+        } else {
+          this.greetings = [];
+        }
       } catch {
         this.greetings = [];
       }
     }
   }
 
-  // Download/Upload
-  downloadData(): void {
-    this.componentDataDownloader({ greetings: this.greetings });
+  // Preview Functionality
+  previewGreeting(greeting: { name: string; message: string }): void {
+    this.greetingName = greeting.name;
+    this.greetingMessage = greeting.message;
+    this.showGreeting = true;
+    this.previewMode = true;
+    setTimeout(() => this.launchConfetti(), 300);
+    this.cdr.detectChanges();
   }
 
-  async uploadData(event: Event): Promise<void> {
-    const data = await this.componentDataUploader(event);
-    if (data && data.greetings) {
-      this.greetings = data.greetings;
-      this.saveToLocalStorage();
-      this.cdr.detectChanges();
-    }
+  closePreview(): void {
+    this.showGreeting = false;
+    this.previewMode = false;
+    this.greetingName = '';
+    this.greetingMessage = '';
   }
 
-  // Confetti Animation (Simple Canvas)
+  // Confetti Animation (Strict Type Checking)
   launchConfetti(): void {
-    const canvas = document.querySelector('canvas') as HTMLCanvasElement | null;
+    const canvasList: NodeListOf<HTMLCanvasElement> = document.querySelectorAll('canvas');
+    if (!canvasList || canvasList.length === 0) return;
+    const canvas: HTMLCanvasElement | null = canvasList[0] ?? null;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d');
     if (!ctx) return;
 
     // Set canvas size
@@ -203,7 +214,12 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
     canvas.height = canvas.offsetHeight;
 
     interface ConfettiPiece {
-      x: number; y: number; r: number; color: string; speed: number; angle: number;
+      x: number;
+      y: number;
+      r: number;
+      color: string;
+      speed: number;
+      angle: number;
     }
     const colors: string[] = ['#FFC107','#03A9F4','#E91E63','#8BC34A','#FF5722','#FFF176'];
     const pieces: ConfettiPiece[] = [];
@@ -219,10 +235,10 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
     }
 
     let running = true;
-    function animate() {
-      if (!running) return;
+    function animate(): void {
+      if (!running || !ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      pieces.forEach(p => {
+      pieces.forEach((p: ConfettiPiece) => {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, 2 * Math.PI);
         ctx.fillStyle = p.color;
@@ -242,6 +258,11 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
     animate();
 
     // Stop after 7 seconds
-    setTimeout(() => { running = false; ctx.clearRect(0,0,canvas.width,canvas.height); }, 7000);
+    setTimeout(() => {
+      running = false;
+      if (ctx) {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      }
+    }, 7000);
   }
 }

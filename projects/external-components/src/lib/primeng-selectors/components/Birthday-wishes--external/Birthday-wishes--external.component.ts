@@ -131,7 +131,7 @@ export class BirthdayWishesComponent extends CommonExternalComponent implements 
     }
   }
 
-  // Simple canvas fireworks animation (no external library)
+  // Fireworks animation with strict null checks
   launchFireworks(): void {
     const canvas = document.getElementById('fireworks-canvas') as HTMLCanvasElement | null;
     if (!canvas) return;
@@ -139,7 +139,7 @@ export class BirthdayWishesComponent extends CommonExternalComponent implements 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    function resizeCanvas() {
+    function resizeCanvas(): void {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
@@ -156,7 +156,8 @@ export class BirthdayWishesComponent extends CommonExternalComponent implements 
       return colors[Math.floor(Math.random()*colors.length)];
     }
 
-    function createFirework() {
+    function createFirework(): void {
+      if (!canvas) return;
       const x = Math.random() * canvas.width;
       const y = Math.random() * canvas.height * 0.5 + 50;
       const color = randomColor();
@@ -173,7 +174,8 @@ export class BirthdayWishesComponent extends CommonExternalComponent implements 
       }
     }
 
-    function animate() {
+    function animate(): void {
+      if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (const p of particles) {
         ctx.globalAlpha = p.alpha;

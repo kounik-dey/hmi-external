@@ -13,7 +13,7 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
       - Add friends/relatives' names and custom messages.
       - Generate a shareable link with name & message in URL params.
       - Preview the greeting as it will appear to your friend (with confetti).
-      - When opened via link, shows personalized greeting and confetti animation.
+      - When opened via link, shows personalized greeting and smooth animated confetti.
       - Launch fireworks show for special effect.
       - Data is saved in local storage.
       - Responsive Bootstrap 5 UI, PrimeIcons v7 for icons.
@@ -154,6 +154,8 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
   @ViewChild('confettiCanvas') confettiCanvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('fireworkCanvas') fireworkCanvasRef!: ElementRef<HTMLCanvasElement>;
 
+  private confettiStopper?: () => void;
+
   constructor(private cdr: ChangeDetectorRef) {
     super();
     this.greetings = [];
@@ -245,9 +247,12 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
     this.previewMode = false;
     this.greetingName = '';
     this.greetingMessage = '';
+    if (this.confettiStopper) {
+      this.confettiStopper();
+    }
   }
 
-  // Confetti Animation (Strict Type Checking, foreground, real paper effect)
+  // SMOOTH ANIMATED CONFETTI (foreground, <canvas>, realistic paper)
   launchConfetti(): void {
     setTimeout(() => {
       const canvas: HTMLCanvasElement = this.confettiCanvasRef?.nativeElement!;
@@ -273,6 +278,7 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
         color: string;
         tilt: number;
         tiltAngle: number;
+        tiltAngleSpeed: number;
         speed: number;
         angle: number;
         rotate: number;
@@ -280,75 +286,98 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
         opacity: number;
         gravity: number;
         wind: number;
+        shape: 'rect'|'ellipse';
       }
       const colors: string[] = [
         '#FFC107','#03A9F4','#E91E63','#8BC34A','#FF5722','#FFF176','#7C4DFF','#00E676',
         '#F44336','#FFEB3B','#009688','#FF9800','#673AB7'
       ];
       const pieces: ConfettiPiece[] = [];
-      const totalPieces = Math.floor(window.innerWidth / 8) + 70;
+      const totalPieces = Math.floor(window.innerWidth / 6) + 80;
       for (let i = 0; i < totalPieces; i++) {
         pieces.push({
           x: Math.random() * canvas.width,
           y: Math.random() * -canvas.height,
           w: 8 + Math.random() * 10,
-          h: 18 + Math.random() * 12,
+          h: 16 + Math.random() * 14,
           color: colors[Math.floor(Math.random() * colors.length)],
-          tilt: Math.random() * 16 - 8,
+          tilt: Math.random() * 24 - 12,
           tiltAngle: Math.random() * Math.PI,
-          speed: 2 + Math.random() * 2.6,
+          tiltAngleSpeed: 0.08 + Math.random() * 0.06,
+          speed: 2.1 + Math.random() * 2.5,
           angle: Math.random() * 2 * Math.PI,
           rotate: Math.random() * 360,
-          rotateSpeed: (Math.random() - 0.5) * 8,
+          rotateSpeed: (Math.random() - 0.5) * 6,
           opacity: 0.85 + Math.random() * 0.15,
-          gravity: 0.14 + Math.random() * 0.13,
-          wind: (Math.random() - 0.5) * 0.9
+          gravity: 0.19 + Math.random() * 0.11,
+          wind: (Math.random() - 0.5) * 1.25,
+          shape: Math.random() > 0.35 ? 'rect' : 'ellipse'
         });
       }
 
       let running = true;
-      function animate(): void {
+      let lastTime = performance.now();
+
+      function animate(now: number) {
         if (!running || !ctx) return;
+        const delta = Math.min((now - lastTime)/16.66, 2.5); // ~60fps cap, smoother on fast devices
+        lastTime = now;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         pieces.forEach((p: ConfettiPiece) => {
           ctx.save();
           ctx.globalAlpha = p.opacity;
           ctx.translate(p.x, p.y);
           ctx.rotate(p.tiltAngle + p.rotate * Math.PI / 180);
-          ctx.beginPath();
-          // Draw rectangle as paper piece, rounded edge
-          ctx.moveTo(-p.w/2, -p.h/2);
-          ctx.lineTo(p.w/2, -p.h/2);
-          ctx.quadraticCurveTo(p.w/2+2, 0, p.w/2, p.h/2);
-          ctx.lineTo(-p.w/2, p.h/2);
-          ctx.quadraticCurveTo(-p.w/2-2, 0, -p.w/2, -p.h/2);
-          ctx.closePath();
-          ctx.fillStyle = p.color;
-          ctx.shadowColor = p.color;
-          ctx.shadowBlur = 12;
-          ctx.fill();
+
+          if (p.shape === 'rect') {
+            // Paper rectangle with rounded edge
+            ctx.beginPath();
+            ctx.moveTo(-p.w/2, -p.h/2);
+            ctx.lineTo(p.w/2, -p.h/2);
+            ctx.quadraticCurveTo(p.w/2+2, 0, p.w/2, p.h/2);
+            ctx.lineTo(-p.w/2, p.h/2);
+            ctx.quadraticCurveTo(-p.w/2-2, 0, -p.w/2, -p.h/2);
+            ctx.closePath();
+            ctx.fillStyle = p.color;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 12;
+            ctx.fill();
+          } else {
+            // Elliptical/confetti round
+            ctx.beginPath();
+            ctx.ellipse(0, 0, p.w/2, p.h/2, 0, 0, 2*Math.PI);
+            ctx.fillStyle = p.color;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 10;
+            ctx.fill();
+          }
           ctx.restore();
 
           // Physics-like motion
-          p.y += p.speed + p.gravity;
-          p.x += Math.sin(p.angle) * 1.1 + p.wind;
-          p.tiltAngle += 0.06 + Math.random() * 0.07;
-          p.tilt = Math.sin(p.tiltAngle) * 16;
-          p.angle += 0.008 + Math.random() * 0.005;
-          p.rotate += p.rotateSpeed;
+          p.y += (p.speed + p.gravity) * delta;
+          p.x += (Math.sin(p.angle) * 1.3 + p.wind) * delta;
+          p.tiltAngle += p.tiltAngleSpeed * delta;
+          p.tilt = Math.sin(p.tiltAngle) * 18;
+          p.angle += 0.008 * delta + Math.random() * 0.006 * delta;
+          p.rotate += p.rotateSpeed * delta;
           if (p.y > canvas.height + 30) {
+            // Respawn at the top
             p.y = -20;
             p.x = Math.random() * canvas.width;
             p.rotate = Math.random() * 360;
-            p.tilt = Math.random() * 16 - 8;
+            p.tilt = Math.random() * 24 - 12;
             p.tiltAngle = Math.random() * Math.PI;
           }
         });
         requestAnimationFrame(animate);
       }
-      animate();
+      const animationId = requestAnimationFrame(animate);
 
-      // Stop after 7 seconds
+      // Stop after 7 seconds unless interrupted by closing preview
+      this.confettiStopper = () => {
+        running = false;
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      };
       setTimeout(() => {
         running = false;
         ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -360,6 +389,9 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
   launchFireworks(): void {
     this.fireworkMode = true;
     this.showFireworkName = false;
+    if (this.confettiStopper) {
+      this.confettiStopper();
+    }
     this.cdr.detectChanges();
     setTimeout(() => this.startFireworkShow(), 50);
   }

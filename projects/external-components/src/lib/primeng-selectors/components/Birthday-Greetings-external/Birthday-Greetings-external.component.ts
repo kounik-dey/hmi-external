@@ -14,32 +14,27 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
       - Generate a shareable link with name & message in URL params.
       - Preview the greeting as it will appear to your friend (with confetti).
       - When opened via link, shows personalized greeting and confetti animation.
-      - Data is saved in local storage (can download/upload .txt backup).
+      - Data is saved in local storage.
       - Responsive Bootstrap 5 UI, PrimeIcons v7 for icons.
     -->
 
     <div class="container py-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-3" *ngIf="!showGreeting">
         <h2>
           <i class="pi pi-gift text-primary"></i> Birthday Greetings
         </h2>
-        <div>
-          <button class="btn btn-outline-success btn-sm me-2" (click)="downloadData()" title="Download greetings data">
-            <i class="pi pi-download"></i> Download
-          </button>
-          <label class="btn btn-outline-primary btn-sm mb-0" title="Upload greetings data">
-            <i class="pi pi-upload"></i> Upload
-            <input type="file" accept=".txt" style="display:none" (change)="uploadData($event)">
-          </label>
-        </div>
       </div>
 
       <!-- Greeting View if link has params or preview -->
       <div *ngIf="showGreeting" class="text-center position-relative" style="min-height: 350px;">
-        <canvas #confettiCanvas class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events:none; z-index:0;"></canvas>
-        <div class="card shadow mx-auto p-4" style="max-width: 400px; background: rgba(255,255,255,0.95); position:relative; z-index:1;">
+        <canvas #confettiCanvas class="position-fixed top-0 start-0 w-100 h-100" 
+                style="pointer-events:none; z-index:1050;"></canvas>
+        <div class="card shadow mx-auto p-4 border-0"
+             style="max-width: 400px; background: rgba(255,255,255,0.97); position:relative; z-index:1060;">
+          <div class="mb-3">
+            <i class="pi pi-smile text-warning fs-1"></i>
+          </div>
           <h3 class="mb-3">
-            <i class="pi pi-smile text-warning"></i>
             Happy Birthday, <span class="text-primary">{{ greetingName }}</span>!
           </h3>
           <p class="lead">{{ greetingMessage }}</p>
@@ -113,6 +108,11 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
     canvas {
       pointer-events: none;
       display: block;
+    }
+    @media (max-width: 500px) {
+      .card {
+        padding: 1.25rem !important;
+      }
     }
   `]
 })
@@ -200,20 +200,6 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
     }
   }
 
-  // Download/Upload functionality using inherited functions
-  downloadData(): void {
-    this.componentDataDownloader({ greetings: this.greetings });
-  }
-
-  async uploadData(event: Event): Promise<void> {
-    const result: any = await this.componentDataUploader(event);
-    if (result && typeof result === 'object' && Array.isArray(result.greetings)) {
-      this.greetings = result.greetings as Array<{ name: string; message: string }>;
-      this.saveToLocalStorage();
-      this.cdr.detectChanges();
-    }
-  }
-
   // Preview Functionality
   previewGreeting(greeting: { name: string; message: string }): void {
     this.greetingName = greeting.name;
@@ -231,33 +217,46 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
     this.greetingMessage = '';
   }
 
-  // Confetti Animation (Strict Type Checking)
+  // Confetti Animation (Strict Type Checking, foreground, vibrant)
   launchConfetti(): void {
     const canvasList: NodeListOf<HTMLCanvasElement> = document.querySelectorAll('canvas');
     if (!canvasList || canvasList.length === 0) return;
     const canvas: HTMLCanvasElement = canvasList[0]!;
     const ctx: CanvasRenderingContext2D = canvas.getContext('2d')!;
-    // Set canvas size
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    // Make confetti full viewport and always on top
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.zIndex = '1050';
 
     interface ConfettiPiece {
       x: number;
       y: number;
       r: number;
       color: string;
+      tilt: number;
+      tiltAngle: number;
       speed: number;
       angle: number;
     }
-    const colors: string[] = ['#FFC107','#03A9F4','#E91E63','#8BC34A','#FF5722','#FFF176'];
+    const colors: string[] = [
+      '#FFC107','#03A9F4','#E91E63','#8BC34A','#FF5722','#FFF176','#7C4DFF','#00E676'
+    ];
     const pieces: ConfettiPiece[] = [];
-    for (let i = 0; i < 70; i++) {
+    const totalPieces = Math.floor(window.innerWidth / 10) + 60;
+    for (let i = 0; i < totalPieces; i++) {
       pieces.push({
         x: Math.random() * canvas.width,
         y: Math.random() * -canvas.height,
-        r: 7 + Math.random() * 6,
+        r: 8 + Math.random() * 6,
         color: colors[Math.floor(Math.random() * colors.length)],
-        speed: 1 + Math.random() * 2,
+        tilt: Math.random() * 10 - 10,
+        tiltAngle: Math.random() * Math.PI,
+        speed: 1.5 + Math.random() * 2.5,
         angle: Math.random() * 2 * Math.PI
       });
     }
@@ -267,17 +266,25 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
       if (!running || !ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       pieces.forEach((p: ConfettiPiece) => {
+        ctx.save();
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, 2 * Math.PI);
+        ctx.ellipse(
+          p.x + p.tilt, p.y, p.r, p.r * 0.45, p.tiltAngle, 0, 2 * Math.PI
+        );
         ctx.fillStyle = p.color;
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = 0.92;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 12;
         ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.restore();
+
         p.y += p.speed;
-        p.x += Math.sin(p.angle) * 1.5;
-        p.angle += 0.01;
-        if (p.y > canvas.height) {
-          p.y = -10;
+        p.x += Math.sin(p.angle) * 1.6;
+        p.tiltAngle += 0.08 + Math.random() * 0.04;
+        p.tilt = Math.sin(p.tiltAngle) * 16;
+        p.angle += 0.008;
+        if (p.y > canvas.height + 20) {
+          p.y = -15;
           p.x = Math.random() * canvas.width;
         }
       });

@@ -14,7 +14,7 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
       - Generate a shareable link with name & message in URL params.
       - Preview the greeting as it will appear to your friend (with confetti).
       - When opened via link, shows personalized greeting and confetti animation.
-      - Data is saved in local storage.
+      - Data is saved in local storage (can download/upload .txt backup).
       - Responsive Bootstrap 5 UI, PrimeIcons v7 for icons.
     -->
 
@@ -23,6 +23,15 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
         <h2>
           <i class="pi pi-gift text-primary"></i> Birthday Greetings
         </h2>
+        <div>
+          <button class="btn btn-outline-success btn-sm me-2" (click)="downloadData()" title="Download greetings data">
+            <i class="pi pi-download"></i> Download
+          </button>
+          <label class="btn btn-outline-primary btn-sm mb-0" title="Upload greetings data">
+            <i class="pi pi-upload"></i> Upload
+            <input type="file" accept=".txt" style="display:none" (change)="uploadData($event)">
+          </label>
+        </div>
       </div>
 
       <!-- Greeting View if link has params or preview -->
@@ -108,17 +117,25 @@ import { CommonExternalComponent } from '../common-external/common-external.comp
   `]
 })
 export class BirthdayGreetingsComponent extends CommonExternalComponent {
-  greetings: Array<{ name: string; message: string }> = [];
-  newName: string = '';
-  newMessage: string = '';
-  shareableUrl: string = '';
-  showGreeting: boolean = false;
-  greetingName: string = '';
-  greetingMessage: string = '';
-  previewMode: boolean = false;
+  greetings!: Array<{ name: string; message: string }>;
+  newName!: string;
+  newMessage!: string;
+  shareableUrl!: string;
+  showGreeting!: boolean;
+  greetingName!: string;
+  greetingMessage!: string;
+  previewMode!: boolean;
 
   constructor(private cdr: ChangeDetectorRef) {
     super();
+    this.greetings = [];
+    this.newName = '';
+    this.newMessage = '';
+    this.shareableUrl = '';
+    this.showGreeting = false;
+    this.greetingName = '';
+    this.greetingMessage = '';
+    this.previewMode = false;
     this.loadFromLocalStorage();
     this.checkForGreetingParams();
   }
@@ -183,6 +200,20 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
     }
   }
 
+  // Download/Upload functionality using inherited functions
+  downloadData(): void {
+    this.componentDataDownloader({ greetings: this.greetings });
+  }
+
+  async uploadData(event: Event): Promise<void> {
+    const result: any = await this.componentDataUploader(event);
+    if (result && typeof result === 'object' && Array.isArray(result.greetings)) {
+      this.greetings = result.greetings as Array<{ name: string; message: string }>;
+      this.saveToLocalStorage();
+      this.cdr.detectChanges();
+    }
+  }
+
   // Preview Functionality
   previewGreeting(greeting: { name: string; message: string }): void {
     this.greetingName = greeting.name;
@@ -204,11 +235,8 @@ export class BirthdayGreetingsComponent extends CommonExternalComponent {
   launchConfetti(): void {
     const canvasList: NodeListOf<HTMLCanvasElement> = document.querySelectorAll('canvas');
     if (!canvasList || canvasList.length === 0) return;
-    const canvas: HTMLCanvasElement | null = canvasList[0] ?? null;
-    if (!canvas) return;
-    const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d');
-    if (!ctx) return;
-
+    const canvas: HTMLCanvasElement = canvasList[0]!;
+    const ctx: CanvasRenderingContext2D = canvas.getContext('2d')!;
     // Set canvas size
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
